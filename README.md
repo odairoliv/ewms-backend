@@ -94,3 +94,4 @@ psql -U postgres -d ewms -f scripts/create_database_postgres.sql
 python -m scripts.seed
 ```
 Isso apaga e recria todas as tabelas — só use em ambiente de desenvolvimento local.
+
