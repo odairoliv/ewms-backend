@@ -30,7 +30,7 @@ Pré-requisito: Docker Desktop instalado e rodando.
    ```
    docker compose exec backend python -m scripts.seed
    ```
-4. Documentação interativa: http://localhost:8000/docs
+4. Documentação interativa: http://localhost:8000/docs (requer `ENABLE_DOCS=true` no `.env`, já incluso no `.env.example` para uso local; em produção fica desligada por padrão)
 
 Para rodar novamente depois da primeira vez: `docker compose up`.
 Para resetar o banco do zero: `docker compose down -v && docker compose up --build` (o `-v` remove o volume do Postgres).
@@ -66,7 +66,7 @@ Para resetar o banco do zero: `docker compose down -v && docker compose up --bui
    ```
    uvicorn app.main:app --reload --port 8000
    ```
-7. Documentação interativa: http://localhost:8000/docs
+7. Documentação interativa: http://localhost:8000/docs (requer `ENABLE_DOCS=true` no `.env`)
 
 Para rodar novamente depois da primeira vez, em uma nova sessão de terminal dentro de `ewms-backend`:
 ```
@@ -76,15 +76,7 @@ uvicorn app.main:app --reload --port 8000
 
 ## Usuários de teste (após `python -m scripts.seed`)
 
-| Email | Senha | Perfil | Empresa |
-|---|---|---|---|
-| super@ewms.com | super123 | SuperUsuario | EWMS Sistemas |
-| admin@ewms.com | admin123 | Administrador | Cliente Demo S.A. |
-| lider@ewms.com | lider123 | Liderança | Cliente Demo S.A. |
-| fornecedor@ewms.com | fornecedor123 | Fornecedor | Cliente Demo S.A. |
-| usuario@ewms.com | usuario123 | Usuário | Cliente Demo S.A. |
-
-O seed também cria mais 4 empresas-cliente (Banco Horizonte S.A., Varejo Estrela LTDA, Indústria Atlas LTDA, Saúde Vitalis S.A.) com seus próprios usuários, fornecedores e consultores, usadas para validar o isolamento multi-tenant e a visão cross-tenant do SuperUsuario.
+O script cria 1 SuperUsuario (empresa EWMS Sistemas) e 5 empresas-cliente (Cliente Demo S.A., Banco Horizonte S.A., Varejo Estrela LTDA, Indústria Atlas LTDA, Saúde Vitalis S.A.), cada uma com Administrador, Liderança, Fornecedor(es) e Usuário(s)/Terceiro(s) de exemplo — usadas para validar o isolamento multi-tenant e a visão cross-tenant do SuperUsuario. As credenciais geradas ficam impressas no terminal ao final da execução — não são publicadas aqui por segurança. Em ambientes de produção, troque essas senhas assim que possível.
 
 ## Integração com o frontend
 

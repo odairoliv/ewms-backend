@@ -16,6 +16,8 @@ class Settings(BaseSettings):
 
     cors_origins: str = "http://localhost:5173"
 
+    enable_docs: bool = False
+
     @property
     def database_url(self) -> str:
         return (

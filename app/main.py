@@ -19,7 +19,13 @@ from app.controllers import (
 from app.core.config import settings
 from app.core.rate_limit import limiter
 
-app = FastAPI(title="EWMS API", version="1.0.0")
+app = FastAPI(
+    title="EWMS API",
+    version="1.0.0",
+    docs_url="/docs" if settings.enable_docs else None,
+    redoc_url="/redoc" if settings.enable_docs else None,
+    openapi_url="/openapi.json" if settings.enable_docs else None,
+)
 
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
