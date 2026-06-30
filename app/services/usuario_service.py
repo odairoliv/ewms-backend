@@ -32,25 +32,33 @@ class UsuarioService:
         self.custom_field_service = CustomFieldService(db)
         self.audit_service = AuditService(db)
 
-    def resolver_perfil(self, usuario: Usuario) -> str:
+    def resolver_perfil(self, usuario: Usuario, liderancas_ids: set[int] | None = None) -> str:
         """O perfil efetivo de um usuário: Administrador/SuperUsuario continuam sendo
         atribuídos manualmente; todo o resto é automático — Fornecedor se houver
         id_fornecedor vinculado, Liderança se ele for o líder de algum consultor ativo,
-        senão Usuário comum."""
+        senão Usuário comum.
+
+        `liderancas_ids`, quando informado (ver list_for_user), evita 1 query por usuário
+        (existe_lideranca) ao checar a lista pré-calculada em memória."""
         if usuario.perfil in ("Administrador", "SuperUsuario"):
             return usuario.perfil
         if usuario.id_fornecedor:
             return "Fornecedor"
-        if self.consultor_repo.existe_lideranca(usuario.id):
+        is_lideranca = (
+            usuario.id in liderancas_ids
+            if liderancas_ids is not None
+            else self.consultor_repo.existe_lideranca(usuario.id)
+        )
+        if is_lideranca:
             return "Liderança"
         return "Usuário"
 
-    def _enrich(self, usuario: Usuario) -> dict:
+    def _enrich(self, usuario: Usuario, liderancas_ids: set[int] | None = None) -> dict:
         return {
             "id": usuario.id,
             "nome": usuario.nome,
             "email": usuario.email,
-            "perfil": self.resolver_perfil(usuario),
+            "perfil": self.resolver_perfil(usuario, liderancas_ids),
             "cpf": usuario.cpf,
             "telefone": usuario.telefone,
             "departamento": usuario.departamento,
@@ -76,7 +84,8 @@ class UsuarioService:
             usuarios = self.repo.list_all()
         else:
             usuarios = self.repo.list_by_empresa(current_user.get("empresa_id"))
-        return [self._enrich(u) for u in usuarios]
+        liderancas_ids = self.consultor_repo.liderancas_ids()
+        return [self._enrich(u, liderancas_ids) for u in usuarios]
 
     def get(self, usuario_id: int) -> Usuario:
         usuario = self.repo.get_by_id(usuario_id)

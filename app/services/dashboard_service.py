@@ -1,7 +1,8 @@
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import Apontamento, Fornecedor
+from app.models import Fornecedor
+from app.repositories.apontamento_repository import ApontamentoRepository
 from app.services.periodo_utils import periodo_para_data
 
 MESES_ABREV = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"]
@@ -10,6 +11,7 @@ MESES_ABREV = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "O
 class DashboardService:
     def __init__(self, db: Session):
         self.db = db
+        self.apontamento_repo = ApontamentoRepository(db)
 
     def resumo(self, current_user: dict, empresa: str | None = None, periodo: str | None = None) -> dict:
         perfil = current_user.get("perfil")
@@ -20,11 +22,15 @@ class DashboardService:
                 Fornecedor.empresa_id == current_user.get("empresa_id")
             )
         fornecedores_escopo = list(self.db.scalars(stmt_fornecedores))
-        ids_fornecedores_escopo = {f.id for f in fornecedores_escopo}
         fornecedores = {f.id: f.razao_social for f in fornecedores_escopo}
 
-        apontamentos = list(self.db.scalars(select(Apontamento)))
-        apontamentos = [a for a in apontamentos if a.id_fornecedor in ids_fornecedores_escopo]
+        # Filtra já no banco pela empresa do usuário (em vez de trazer todos os
+        # apontamentos de todas as empresas e descartar em Python): menos dado trafegado
+        # pela rede e menos exposição de dados de outros tenants na memória da aplicação.
+        if perfil == "SuperUsuario":
+            apontamentos = self.apontamento_repo.list_all()
+        else:
+            apontamentos = self.apontamento_repo.list_by_empresa(current_user.get("empresa_id"))
 
         if perfil == "Fornecedor":
             apontamentos = [a for a in apontamentos if a.id_fornecedor == current_user.get("id_fornecedor")]
