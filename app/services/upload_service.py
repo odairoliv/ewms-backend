@@ -42,6 +42,15 @@ class UploadService:
         self.apontamento_repo = ApontamentoRepository(db)
         self.consultor_repo = ConsultorRepository(db)
         self.custom_field_repo = CustomFieldRepository(db)
+        # Cache local por upload: a mesma planilha costuma repetir o mesmo consultor em
+        # muitas linhas (ex.: um apontamento por semana) — sem isso, cada linha bateria
+        # no banco de novo pelo mesmo ID já visto.
+        self._consultor_cache: dict[str, object] = {}
+
+    def _buscar_consultor_cacheado(self, consultor_id: str):
+        if consultor_id not in self._consultor_cache:
+            self._consultor_cache[consultor_id] = self.consultor_repo.get_by_id(consultor_id)
+        return self._consultor_cache[consultor_id]
 
     def list_for_user(self, current_user: dict) -> list[Upload]:
         if current_user.get("perfil") == "SuperUsuario":
@@ -120,7 +129,7 @@ class UploadService:
                 f"Linha {num_linha}, coluna 'Período': '{dados['periodo']}' não está no formato Mês/Ano (ex: Maio/2026)"
             )
 
-        consultor = self.consultor_repo.get_by_id(dados["id_consultor"])
+        consultor = self._buscar_consultor_cacheado(dados["id_consultor"])
         if not consultor:
             raise ValueError(
                 f"Linha {num_linha}, coluna 'ID Consultor': consultor '{dados['id_consultor']}' não encontrado"
@@ -165,14 +174,18 @@ class UploadService:
                 for i, linha in enumerate(linhas, start=2):
                     dados_validados.append(service._validar_linha(colunas, cabecalho_idx, linha, i, current_user))
 
-                # Tudo validado — agora persiste tudo de uma vez.
-                for dados in dados_validados:
+                # Tudo validado — agora persiste tudo de uma vez: 1 query de contagem (não
+                # 1 por linha) e 1 commit no final (não 1 por linha), o que evita centenas
+                # de idas ao banco num upload com muitas linhas.
+                contagem_base = service.apontamento_repo.count()
+                novos_apontamentos = []
+                for i, dados in enumerate(dados_validados):
                     consultor = dados.pop("_consultor")
                     horas_decimal = dados["horas_trabalhadas"]
                     valor_total = (horas_decimal * consultor.valor_hora).quantize(Decimal("0.01"))
                     data_reporte = periodo_para_data(str(dados["periodo"]))
-                    apontamento = Apontamento(
-                        id=next_id("APO", service.apontamento_repo.count()),
+                    novos_apontamentos.append(Apontamento(
+                        id=next_id("APO", contagem_base + i),
                         id_consultor=consultor.id,
                         id_fornecedor=dados.get("id_fornecedor") or consultor.id_fornecedor,
                         id_projeto=dados.get("id_projeto"),
@@ -187,8 +200,9 @@ class UploadService:
                         custom02=dados.get("custom02"),
                         custom03=dados.get("custom03"),
                         custom04=dados.get("custom04"),
-                    )
-                    service.apontamento_repo.create(apontamento)
+                    ))
+                db.add_all(novos_apontamentos)
+                db.commit()
 
                 upload.linhas = len(linhas)
                 upload.processadas = len(dados_validados)
